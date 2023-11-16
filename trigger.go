@@ -2,7 +2,6 @@ package mongodbtrigger
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"sync"
@@ -26,9 +25,7 @@ type MongoDBConfig struct {
 // OperationHandler defines a function to handle specific operations.
 type OperationHandler func()
 
-func ListenForOperations() {
-	config := parseFlags()
-
+func ListenForOperations(config MongoDBConfig) {
 	ctx := context.Background()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(createURI(config)))
@@ -93,18 +90,6 @@ func waitForOperation(ctx context.Context, collection *mongo.Collection, operati
 			break
 		}
 	}
-}
-
-func parseFlags() MongoDBConfig {
-	var config MongoDBConfig
-	flag.StringVar(&config.Cluster, "cluster", "cluster9.candidate.mongodb.net", "mongodb cluster name")
-	flag.StringVar(&config.Username, "username", "demo", "mongodb account username")
-	flag.StringVar(&config.Password, "password", "verysecret", "mongodb account password")
-	flag.StringVar(&config.Database, "database", "db1", "mongodb database name")
-	flag.StringVar(&config.Collection, "collection", "verysecret", "mongodb collection name")
-	flag.IntVar(&config.Trigger, "trigger", 0, "mongodb trigger on operation type (1:insert, 2:update, 3:delete)")
-	flag.Parse()
-	return config
 }
 
 func createURI(config MongoDBConfig) string {
