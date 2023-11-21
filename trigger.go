@@ -25,7 +25,10 @@ type MongoDBConfig struct {
 // OperationHandler defines a function to handle specific operations.
 type OperationHandler func()
 
-func ListenForOperations(config MongoDBConfig) {
+// ChangeStreamCallback defines a function to handle change stream documents.
+type ChangeStreamCallback func(changeDoc bson.M)
+
+func ListenForOperations(config MongoDBConfig, changeStreamCallback ChangeStreamCallback) {
 	ctx := context.Background()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(createURI(config)))
@@ -45,9 +48,9 @@ func ListenForOperations(config MongoDBConfig) {
 	dbCollection := client.Database(config.Database).Collection(config.Collection)
 
 	triggerHandlers := map[string]OperationHandler{
-		"insert": func() { waitForOperation(ctx, dbCollection, "insert") },
-		"update": func() { waitForOperation(ctx, dbCollection, "update") },
-		"delete": func() { waitForOperation(ctx, dbCollection, "delete") },
+		"insert": func() { waitForOperation(ctx, dbCollection, "insert", changeStreamCallback) },
+		"update": func() { waitForOperation(ctx, dbCollection, "update", changeStreamCallback) },
+		"delete": func() { waitForOperation(ctx, dbCollection, "delete", changeStreamCallback) },
 	}
 
 	operations := getTriggerOperations(config.Trigger)
@@ -62,7 +65,7 @@ func ListenForOperations(config MongoDBConfig) {
 	wg.Wait()
 }
 
-func waitForOperation(ctx context.Context, collection *mongo.Collection, operationType string) {
+func waitForOperation(ctx context.Context, collection *mongo.Collection, operationType string, changeStreamCallback ChangeStreamCallback) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{{Key: "operationType", Value: operationType}}}},
 	}
@@ -84,7 +87,7 @@ func waitForOperation(ctx context.Context, collection *mongo.Collection, operati
 				log.Println(err)
 				continue
 			}
-			fmt.Printf("Document %s event: %v\n", operationType, changeDoc)
+			changeStreamCallback(changeDoc) // Pass the changeDoc to the callback function
 		} else if err := changeStream.Err(); err != nil {
 			log.Printf("error in change stream for %s operation: %v", operationType, err)
 			break
